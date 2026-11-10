@@ -44,13 +44,16 @@ La segunda orden necesita un emulador o un teléfono conectado.
 
 Ejecución: 10/11/2026 con `gradlew.bat testDebugUnitTest`, BUILD SUCCESSFUL, 0 fallos.
 
-### Pruebas instrumentadas (SQLite real en Android): pendientes de ejecutar
+### Pruebas instrumentadas (SQLite real en Android): 4 de 4 aprobadas
 
 | # | Qué verifica | Clase | Resultado |
 | --- | --- | --- | --- |
-| I01 | La primera cuenta es administradora y las siguientes operadoras; el rol se conserva al iniciar sesión | `LocalAccountsTest` | Compila; pendiente de emulador |
-| I02 | Rechaza usuarios duplicados y contraseñas incorrectas, y bloquea 30 s tras 5 fallos | `LocalAccountsTest` | Compila; pendiente de emulador |
-| I03 | El historial está separado por cuenta y el borrado solo afecta a la cuenta actual | `LocalAccountsTest` | Compila; pendiente de emulador |
+| I01 | La primera cuenta es administradora y las siguientes operadoras; el rol se conserva al iniciar sesión | `LocalAccountsTest` | Aprobada |
+| I02 | Rechaza usuarios duplicados y contraseñas incorrectas, y bloquea 30 s tras 5 fallos | `LocalAccountsTest` | Aprobada |
+| I03 | El historial está separado por cuenta y el borrado solo afecta a la cuenta actual | `LocalAccountsTest` | Aprobada |
+| I04 | El contexto corresponde al paquete `com.example.detectordegas` | `ExampleInstrumentedTest` | Aprobada |
+
+Ejecución: 10/11/2026 en el emulador `Medium_Phone_API_37.0` (Android 17) con `gradlew.bat connectedDebugAndroidTest`, 0 fallos.
 
 ### Errores detectados y corregidos durante las pruebas
 
@@ -62,6 +65,7 @@ Ejecución: 10/11/2026 con `gradlew.bat testDebugUnitTest`, BUILD SUCCESSFUL, 0 
 | No había control de acceso por rol | Roles administrador/operador comprobados en el ViewModel |
 | El código de enlace era por cuenta, así que un operador no podía usar el enlace configurado | El código de enlace y la clave del ESP32 pasan a ser del dispositivo y se guardan cifrados con Keystore |
 | `gradlew.bat` no encontraba Java | Se documentó `JAVA_HOME` con el JDK de Android Studio |
+| En el emulador, al cambiar de pestaña se conservaba el desplazamiento de la anterior (Historial se abría a mitad de la lista) | Cada pestaña tiene su propio estado de desplazamiento y empieza arriba |
 
 ## 2. Pruebas manuales (completar en la demostración)
 
@@ -69,16 +73,16 @@ Escribe en **Obtenido** lo que ocurra y guarda una captura en `docs/evidencias/`
 
 | # | Prueba | Pasos | Resultado esperado | Obtenido |
 | --- | --- | --- | --- | --- |
-| M01 | Registro del administrador | Crear la primera cuenta en el teléfono | Entra; Ajustes muestra "administrador" | |
-| M02 | Registro de un operador | Cerrar sesión y crear otra cuenta | Entra como "operador"; Ajustes en solo lectura y "Probar alarma" desactivado | |
+| M01 | Registro del administrador | Crear la primera cuenta en el teléfono | Entra; Ajustes muestra "administrador" | **Correcto** (emulador): `admin_1 · administrador`. [Login](evidencias/M01_login.png), [sesión](evidencias/M01_sesion_administrador.png) |
+| M02 | Registro de un operador | Cerrar sesión y crear otra cuenta | Entra como "operador"; Ajustes en solo lectura y "Probar alarma" desactivado | **Correcto** (emulador): aviso de operador, sin claves, botón desactivado. [Ajustes](evidencias/M02_ajustes_operador.png), [Monitor](evidencias/M02_monitor_operador.png) |
 | M03 | Contraseña incorrecta | Cinco intentos con una contraseña errónea | Rechazo genérico; bloqueo de 30 s | |
 | M04 | Login sin Internet | Modo avión con Wi-Fi local activo | El login y el historial funcionan | |
-| M05 | Emisor con ESP32 simulado | Ajustes → Emisor → ESP32 simulado → Iniciar monitoreo | Lecturas cada 2 s; alerta al pasar de 500 | |
+| M05 | Emisor con ESP32 simulado | Ajustes → Emisor → ESP32 simulado → Iniciar monitoreo | Lecturas cada 2 s; alerta al pasar de 500 | **Correcto** (emulador): espera inicial → 610 en alerta; Probar alarma pasa a estado de prueba. [Alerta](evidencias/M05_alerta_simulada.png), [prueba](evidencias/M05_prueba_alarma.png) |
 | M06 | Enlace entre dos Android | Receptor con la IP del emisor y su código | El receptor muestra la lectura "Emisor · SIMULACIÓN" | |
 | M07 | Código de enlace incorrecto | Cambiar un carácter del código en el receptor | "El código de enlace no coincide"; sin lecturas | |
 | M08 | Revisión en ambos sentidos | Solicitar en uno y confirmar en el otro | Ambos muestran "Confirmada por …" | |
 | M09 | Control desde el receptor | Probar alarma (3 s) en el receptor (administrador) | Estado "Prueba manual" en ambos; mensaje del resultado | |
-| M10 | Historial | Abrir Historial tras 1 minuto de monitoreo | Registros con fecha, estado, origen y valor | |
+| M10 | Historial | Abrir Historial tras 1 minuto de monitoreo | Registros con fecha, estado, origen y valor | **Correcto** (emulador): incluye "Prueba manual" y la histéresis (470 sigue en alerta); cada cuenta ve solo sus registros. [Historial](evidencias/M10_historial.png) |
 | M11 | Pérdida del emisor | Detener el monitoreo del emisor | El receptor muestra "Sin conexión" y retira la lectura | |
 | M12 | App en segundo plano | Salir al inicio y volver | Se pausa y se reanuda sola | |
 | M13 | ESP32 real autenticado | Clave igual en la app y en el firmware | "ESP32 conectado y autenticado" | |
@@ -90,7 +94,7 @@ M13 a M16 requieren el circuito. M01 a M12 se pueden hacer con dos teléfonos o 
 
 ## 3. Límites de la validación
 
-- La interfaz todavía no se ha probado en un teléfono ni en un emulador. En esta máquina el emulador no terminó de arrancar.
+- La interfaz se probó en un solo emulador (Android 17). El enlace entre dos Android (M06–M09, M11) necesita un segundo dispositivo; la lógica TCP está cubierta por U12–U14 y U22. [Pantalla Teléfonos del emisor](evidencias/M06_telefonos_emisor.png).
 - El firmware no se compiló aquí (no hay arduino-cli instalado). Debe compilarse en el IDE de Arduino con el paquete ESP32.
 - El enlace con el ESP32 está autenticado, pero no cifrado. No se acredita cumplimiento completo de ISO 27400.
 - La app no da alertas en segundo plano: debe estar abierta durante la demostración.

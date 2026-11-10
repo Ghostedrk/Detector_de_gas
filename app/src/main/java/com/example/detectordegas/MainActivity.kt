@@ -74,7 +74,9 @@ private fun DetectorApp(m: DetectorModel) {
             }
         }
     }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+        // Cada pestaña empieza arriba: el estado de desplazamiento depende de la pestaña y de la sesión.
+        val scroll = key(tab, logged) { rememberScrollState() }
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(scroll)
             .padding(horizontal = 22.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
