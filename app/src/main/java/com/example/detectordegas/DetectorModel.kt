@@ -20,6 +20,7 @@ class DetectorModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("local_detector_settings", 0)
     private val history = History(application)
     private val vault = PairingVault(application)
+    private val cloud = CloudSync(application)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutex = Mutex()
     private val hub = LocalHub()
@@ -57,6 +58,14 @@ class DetectorModel(application: Application) : AndroidViewModel(application) {
     /** Clave compartida con el ESP32 (64 hex), igual a CLAVE_DISPOSITIVO del firmware. */
     var deviceKey by mutableStateOf("")
     var lastCommand by mutableStateOf("")
+        private set
+    /** Nube (Firebase): opcional, depende de app/google-services.json. */
+    val cloudConfigured = cloud.configured
+    var cloudEmail by mutableStateOf(runCatching { cloud.email }.getOrNull().orEmpty())
+        private set
+    var cloudHistory by mutableStateOf(emptyList<Reading>())
+        private set
+    var cloudStatus by mutableStateOf("")
         private set
     private val simulator = SimulatedDetector()
     private var lastSave = 0L
@@ -281,8 +290,44 @@ class DetectorModel(application: Application) : AndroidViewModel(application) {
         val now = System.currentTimeMillis()
         if (now - lastSave < 5000 && lastState == r.state) return
         val account = owner
-        withContext(Dispatchers.IO) { history.add(account, r) }
+        // Solo el emisor sube a la nube: es la fuente de las lecturas y así no se duplican.
+        val upload = !demo && publisher && cloudEmail.isNotEmpty()
+        val device = deviceName
+        withContext(Dispatchers.IO) {
+            history.add(account, r)
+            if (upload) runCatching { cloud.upload(r, device) }
+                .onFailure { cloudStatus = "No se pudo subir a la nube: ${cloudMessage(it)}" }
+        }
         lastSave = now; lastState = r.state; refreshLocal()
+    }
+    fun cloudSignIn(email: String, password: String, register: Boolean) {
+        if (busy || demo || !requireAdmin()) return
+        val mail = email.trim()
+        if (!mail.matches(Regex("""[^@\s]+@[^@\s]+\.[^@\s]+""")) || mail.length > 254) { error = "Escribe un correo válido para la nube."; return }
+        if (password.length !in 8..128) { error = "La contraseña de la nube debe tener entre 8 y 128 caracteres."; return }
+        scope.launch {
+            busy = true; error = ""
+            try {
+                cloudEmail = withContext(Dispatchers.IO) { cloud.signIn(mail, password, register) }
+                cloudStatus = "Conectado a Firebase"
+                refreshCloudNow()
+            } catch (e: Exception) { report(e) }
+            finally { busy = false }
+        }
+    }
+    fun cloudSignOut() {
+        if (busy || !requireAdmin()) return
+        cloud.signOut(); cloudEmail = ""; cloudHistory = emptyList(); cloudStatus = "Sesión de la nube cerrada"
+    }
+    fun refreshCloud() = scope.launch {
+        if (busy || demo) return@launch
+        busy = true; error = ""
+        try { refreshCloudNow() } catch (e: Exception) { report(e) } finally { busy = false }
+    }
+    private suspend fun refreshCloudNow() {
+        cloudHistory = withContext(Dispatchers.IO) { cloud.list() }
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        cloudStatus = "${cloudHistory.size} lecturas descargadas de Firestore · $time"
     }
     private suspend fun refreshLocal() {
         val account = owner

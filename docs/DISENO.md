@@ -1,6 +1,6 @@
 # Diseño del proyecto: Detector de gas IoT con Android
 
-Sumativa Unidad 2 · TI3042 Aplicaciones Móviles para IoT · Versión de la app 2.1-local
+Sumativa Unidad 2 · TI3042 Aplicaciones Móviles para IoT · Versión de la app 3.0
 
 ## 1. Problemática y dispositivos a conectar
 
@@ -10,7 +10,7 @@ Las fugas de gas licuado (GLP) o de gas natural en viviendas, cocinas y laborato
 
 ### Objetivo de la solución
 
-Monitorear un sensor de gas desde dos teléfonos Android en la misma red Wi-Fi, guardar un historial de lecturas, controlar el detector a distancia (prueba de alarma) y coordinar la revisión entre dos personas. Todo funciona dentro de la red local, sin Internet ni servicios en la nube.
+Monitorear un sensor de gas desde dos teléfonos Android en la misma red Wi-Fi, guardar un historial de lecturas, controlar el detector a distancia (prueba de alarma) y coordinar la revisión entre dos personas. El monitoreo, el login y el control funcionan dentro de la red local, incluso sin Internet. Cuando hay Internet, el emisor respalda además las lecturas en la nube (Firebase), y se pueden consultar desde cualquier lugar.
 
 ### Dispositivos y sistemas
 
@@ -21,6 +21,7 @@ Monitorear un sensor de gas desde dos teléfonos Android en la misma red Wi-Fi, 
 | ESP32 DevKit V1 | Puerta de enlace Wi-Fi: publica la lectura y recibe órdenes, con firma HMAC-SHA256 | Wi-Fi 2,4 GHz (HTTP en red local) |
 | Android emisor | Consulta el ESP32, guarda el historial y comparte la lectura con el otro teléfono | HTTP al ESP32 y TCP cifrado (puerto 8765) |
 | Android receptor | Muestra la lectura compartida, guarda su historial, pide pruebas y revisiones | TCP cifrado con el emisor |
+| Firebase (nube) | Authentication (correo y contraseña) y Cloud Firestore: respaldo y consulta remota del historial | HTTPS/TLS por Internet |
 
 ```mermaid
 flowchart LR
@@ -29,6 +30,8 @@ flowchart LR
     E -->|"UART: T (prueba)"| U
     E <-->|"HTTP firmado HMAC<br/>Wi-Fi local"| A[Android emisor<br/>SQLite]
     A <-->|"TCP + AES-256-GCM<br/>puerto 8765"| B[Android receptor<br/>SQLite]
+    A -->|"HTTPS/TLS<br/>sube lecturas"| F[(Firebase<br/>Auth + Firestore)]
+    F -->|"HTTPS/TLS<br/>consulta"| B
 ```
 
 Sin el circuito, el emisor puede usar un **ESP32 simulado** que aplica la misma lógica del Arduino. Así se demuestra la comunicación entre los dos Android.
@@ -48,8 +51,10 @@ Sin el circuito, el emisor puede usar un **ESP32 simulado** que aplica la misma 
 | RF09 | Solicitud de revisión desde un teléfono y confirmación desde el otro | Teléfonos |
 | RF10 | Detección de pérdida de datos del Arduino, del ESP32 o del emisor, sin mostrarla como "sin alerta" | Monitor |
 | RF11 | Fuente simulada (ESP32 simulado y modo demostración) para probar sin hardware | Ajustes / Login |
+| RF12 | Cuenta en la nube (Firebase Authentication) conectada por el administrador | Ajustes |
+| RF13 | Respaldo automático de las lecturas del emisor en Cloud Firestore y consulta del historial en la nube desde cualquiera de los dos teléfonos | Historial |
 
-Requisitos no funcionales: funciona sin Internet, Android 7.0 (API 24) o superior, interfaz en español y textos que aclaran que las lecturas son ADC y no ppm.
+Requisitos no funcionales: el monitoreo y el login funcionan sin Internet (la nube es un complemento), Android 7.0 (API 24) o superior, interfaz en español y textos que aclaran que las lecturas son ADC y no ppm.
 
 ## 3. Herramientas de desarrollo y justificación
 
@@ -61,6 +66,7 @@ Requisitos no funcionales: funciona sin Internet, Android 7.0 (API 24) o superio
 | ViewModel (`AndroidViewModel`) | Arquitectura MVVM | Separa la lógica de la interfaz y conserva el estado al rotar la pantalla |
 | Corrutinas y `repeatOnLifecycle` | Consultas periódicas | Las consultas de red no bloquean la interfaz y se pausan cuando la app no está visible |
 | SQLite (`SQLiteOpenHelper`) | Cuentas e historial | Incluido en Android, funciona sin conexión y no requiere servidor |
+| Firebase BoM 35.2 (Authentication + Cloud Firestore) | Cuenta en la nube, respaldo y consulta remota | SDK oficial de Google para Android; HTTPS/TLS, reglas de seguridad en el servidor y caché offline que envía las lecturas al volver la conexión |
 | `HttpURLConnection` y sockets TCP | Comunicación IoT y entre teléfonos | API estándar de Java/Android, sin dependencias externas |
 | `javax.crypto` y Android Keystore | Seguridad | Criptografía de la plataforma: PBKDF2, AES-GCM y HMAC-SHA256; la clave maestra queda en el almacén seguro de Android |
 | JUnit 4 y AndroidX Test | Pruebas | 22 pruebas unitarias en la JVM y 3 pruebas instrumentadas de SQLite |
@@ -70,11 +76,16 @@ Requisitos no funcionales: funciona sin Internet, Android 7.0 (API 24) o superio
 
 | Opción | Seguridad | Escalabilidad | Facilidad | Funciona sin Internet |
 | --- | --- | --- | --- | --- |
-| **SQLite local (elegida)** | Hash PBKDF2 con sal por cuenta; los datos no salen del teléfono | Limitada a cada teléfono | Alta: viene en Android | **Sí** |
-| Firebase Authentication | Alta, gestionada por Google | Alta | Media: requiere proyecto y google-services | No |
+| **SQLite local (elegida para el login y el historial del teléfono)** | Hash PBKDF2 con sal por cuenta; los datos no salen del teléfono | Limitada a cada teléfono | Alta: viene en Android | **Sí** |
+| **Firebase Authentication + Firestore (elegida para la nube)** | Alta: gestionada por Google, TLS y reglas por usuario | Alta | Media: requiere proyecto y google-services.json | No (Firestore guarda en caché y sincroniza después) |
 | API REST + MySQL | Depende del backend | Alta | Baja: requiere servidor, TLS y despliegue | No |
 
-Se eligió SQLite porque la demostración se hace en una red local que puede no tener salida a Internet y porque el detector debe seguir funcionando aunque se caiga la conexión externa. La desventaja, que las cuentas no se sincronizan entre teléfonos, se acepta: cada teléfono tiene sus propios usuarios y el enlace entre ambos se autoriza con un código compartido, no con la contraseña.
+Se usa una **arquitectura híbrida**:
+
+- **SQLite** para el login y el historial de cada teléfono: un detector de gas debe seguir funcionando aunque se caiga Internet, y la demostración puede hacerse en una red local sin salida.
+- **Firebase** para la nube: el emisor sube cada lectura guardada a Cloud Firestore. Con la misma cuenta de Firebase, ambos teléfonos consultan ese historial desde cualquier lugar con Internet. Así se cubre la escalabilidad y la consulta remota que SQLite no ofrece.
+
+Firebase se eligió frente a una API propia con MySQL porque no exige montar ni mantener un servidor, trae TLS y autenticación integrados y permite reglas de seguridad por usuario. La nube es opcional: si no hay `google-services.json` o no hay Internet, la app sigue funcionando en local y Firestore envía las lecturas pendientes al volver la conexión.
 
 Interoperabilidad de datos: el ESP32 entrega JSON con un formato fijo (`lectura`, `estado`, `conexion_arduino`, `unidad`), y la app valida rangos y estados antes de guardarlo.
 
@@ -93,7 +104,7 @@ Interoperabilidad de datos: el ESP32 entrega JSON con un formato fijo (`lectura`
 - **Distancia:** el detector suele estar en la cocina y las personas en otras habitaciones; el Wi-Fi cubre la vivienda completa y Bluetooth no.
 - **Energía:** un detector de gas es un dispositivo de seguridad que debe estar siempre encendido y conectado a la red eléctrica, así que el mayor consumo del Wi-Fi no es una limitación. Los teléfonos solo consultan mientras la app está visible.
 - **Estabilidad:** el ESP32 atiende varias solicitudes y reintenta la conexión Wi-Fi cada 30 s. La app detecta datos vencidos (más de 3 s sin datos del Arduino o más de 10 s sin datos del emisor) y no los muestra como válidos.
-- **MQTT descartado** porque exige un broker adicional que tendría que estar disponible siempre y, si estuviera en la nube, rompería el requisito de funcionar sin Internet.
+- **MQTT descartado** porque exige un broker adicional siempre disponible. Para la nube se usó Firebase, que ya incluye sincronización y caché offline sin mantener un broker.
 
 ## 5. Arquitectura del software
 
@@ -105,12 +116,14 @@ app/src/main/java/com/example/detectordegas/
 ├── LocalPeer.kt      Servidor/cliente TCP entre teléfonos (AES-GCM y desafío por conexión)
 ├── LocalCrypto.kt    PBKDF2, AES-GCM, HMAC-SHA256 y roles
 ├── PairingVault.kt   Cifrado del código de enlace y de la clave del ESP32 con Android Keystore
+├── CloudSync.kt      Firebase Authentication y Cloud Firestore (users/{uid}/readings)
 └── Simulator.kt      ESP32 simulado con la lógica del Arduino
 firmware/ArduinoUno/ArduinoUno.ino  Sensor, umbrales, LEDs, buzzer y comando T
 firmware/ESP32/ESP32.ino            Wi-Fi, /estado, /desafio, /prueba con HMAC
+firebase/firestore.rules            Reglas de seguridad de Firestore
 ```
 
-Flujo de una lectura: `poll()` cada 2 s → `EspClient.status()` (o el simulador) → `Reading.parse()` valida → interfaz + `History.add()` (cada 5 s o al cambiar de estado) → `LocalHub` la publica para el receptor.
+Flujo de una lectura: `poll()` cada 2 s → `EspClient.status()` (o el simulador) → `Reading.parse()` valida → interfaz + `History.add()` (cada 5 s o al cambiar de estado) y, si hay cuenta en la nube, `CloudSync.upload()` a Firestore → `LocalHub` la publica para el receptor.
 
 ## 6. Seguridad según ISO/IEC 27400
 
@@ -128,11 +141,16 @@ ISO/IEC 27400:2022 define controles de seguridad y privacidad para soluciones Io
 | Protección de los datos en el teléfono | `allowBackup=false` y reglas de extracción: la base SQLite no se copia a respaldos en la nube; consultas SQL con parámetros | `AndroidManifest.xml`, `History` |
 | Validación de entradas | JSON del ESP32 y del emisor validado: unidad, rango 0–1023, estados permitidos y coherencia entre la lectura y la conexión | `Reading.parse`, `procesarLinea()` |
 | Disponibilidad y fallo seguro | La pérdida de datos se muestra como "sin datos", nunca como "sin alerta"; el Arduino mantiene la alarma física aunque fallen la red o la app | `DetectorModel`, `ArduinoUno.ino` |
+| Conexiones seguras (HTTPS/TLS) | Todo el tráfico con Firebase va por HTTPS/TLS con certificados del sistema | `CloudSync.kt` |
+| Control de acceso en la nube | Reglas de Firestore: cada cuenta solo lee y crea sus lecturas (`users/{uid}`); no se pueden modificar ni borrar; se validan campos, tipos y rangos; todo lo demás está denegado | `firebase/firestore.rules` |
+| Autenticación en la nube | Firebase Authentication con correo y contraseña (8 a 128 caracteres); solo el administrador conecta o desconecta la cuenta | `DetectorModel.cloudSignIn` |
+| Protección de la configuración | `google-services.json` está excluido del repositorio público | `.gitignore` |
 | Permisos mínimos | Solo `INTERNET`, `ACCESS_NETWORK_STATE` y `ACCESS_LOCAL_NETWORK` (este último se pide en tiempo de ejecución en Android 17) | `AndroidManifest.xml`, `Monitor` |
 
 **Límites declarados:**
 
-- El tramo con el ESP32 usa HTTP autenticado, no cifrado: protege la autenticidad y la integridad, pero no la confidencialidad (la red Wi-Fi WPA2 la protege parcialmente). Se descartó HTTPS en el ESP32 por la gestión de certificados sin una autoridad local. Es la mejora prioritaria para la Unidad 4.
+- El tramo local con el ESP32 usa HTTP autenticado, no cifrado: protege la autenticidad y la integridad, pero no la confidencialidad (la red Wi-Fi WPA2 la protege parcialmente). Se descartó HTTPS en el ESP32 por la gestión de certificados sin una autoridad local. El tramo hacia la nube sí usa HTTPS/TLS. Cifrar el tramo local es la mejora prioritaria para la Unidad 4.
+- Las lecturas en Firestore se guardan cifradas en reposo por Google, pero no con cifrado de extremo a extremo.
 - La clave del ESP32 se escribe en el firmware; en producción se guardaría cifrada en la memoria flash del microcontrolador.
 - Es un prototipo educativo: no reemplaza un detector certificado y el MQ-2 no está calibrado en ppm.
 

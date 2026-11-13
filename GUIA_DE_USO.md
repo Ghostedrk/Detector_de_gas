@@ -1,6 +1,6 @@
-# Instalación y demostración completamente local
+# Instalación y demostración
 
-Esta versión conecta el detector y dos teléfonos dentro de una misma red Wi-Fi. No necesita Internet, registro en páginas web ni servicios externos.
+Esta versión conecta el detector y dos teléfonos dentro de una misma red Wi-Fi. El monitoreo no necesita Internet. La nube con Firebase (sección 10) es opcional y requiere Internet.
 
 ## 1 Instalar la aplicación
 
@@ -148,7 +148,33 @@ El botón de borrar historial solicita confirmación. Solo borra los registros d
 
 La red local y el prototipo funcionan sin servicios externos. Para preparar o recompilar el proyecto, Android Studio puede necesitar descargar herramientas y bibliotecas; eso no es una dependencia de la aplicación instalada.
 
-## 10 Seguridad implementada y límites
+## 10 Nube con Firebase (opcional)
+
+Sin este paso, la app compila y funciona en local, y la sección **Nube** de Ajustes indica que Firebase no está configurado.
+
+### Crear el proyecto (una vez, en el computador)
+
+1. Entra en <https://console.firebase.google.com> con tu cuenta de Google y pulsa **Crear un proyecto** (por ejemplo `detector-de-gas`). Google Analytics no es necesario.
+2. **Agregar app → Android**. Nombre del paquete: `com.example.detectordegas`. Registra la app.
+3. Descarga **google-services.json** y cópialo en la carpeta `app/` del proyecto (junto a `app/build.gradle.kts`). Está excluido de Git, así que no se sube al repositorio público.
+4. **Authentication → Comenzar → Correo electrónico/contraseña → Habilitar → Guardar**.
+5. **Firestore Database → Crear base de datos**. Elige una ubicación cercana (por ejemplo `southamerica-east1`) y empieza en **modo de producción**.
+6. En **Firestore → Reglas**, borra el contenido, pega el de `firebase/firestore.rules` y pulsa **Publicar**.
+7. En Android Studio, pulsa **Sync Project with Gradle Files** y vuelve a ejecutar la app.
+
+### Usarla en la demostración
+
+1. En el **emisor**, como administrador: **Ajustes → Nube · Firebase**, escribe un correo y una contraseña de 8 caracteres o más, y pulsa **Crear cuenta**. Después usa **Entrar**.
+2. Inicia el monitoreo. Cada lectura que se guarda en SQLite también se sube a Firestore (aproximadamente cada 5 s o al cambiar de estado).
+3. En el **receptor**, como administrador, entra en la nube con **la misma cuenta**.
+4. En cualquiera de los dos: **Historial → Nube · Firestore → Actualizar desde la nube**.
+5. En Firebase Console → Firestore se ven los documentos en `users/{uid}/readings`. Muéstralo en la presentación.
+
+Solo el emisor sube lecturas, para no duplicarlas. Sin Internet, Firestore las guarda en caché y las envía al volver la conexión. Las lecturas en la nube no se pueden borrar ni modificar desde la app: es un registro de solo anexado.
+
+Con el plan gratuito (Spark) hay un límite diario de escrituras más que suficiente para la evaluación. Detén el monitoreo cuando no lo estés usando.
+
+## 11 Seguridad implementada y límites
 
 Las contraseñas se guardan como hashes PBKDF2 con una sal aleatoria por cuenta y 210000 iteraciones. Se utiliza HMAC-SHA256 en Android 8 o posterior y HMAC-SHA1 en Android 7. Tras cinco contraseñas incorrectas consecutivas de una cuenta, se bloquean los intentos durante 30 segundos. Las consultas SQL utilizan parámetros.
 

@@ -1,6 +1,6 @@
-# Detector de gas para evaluación en red local
+# Detector de gas IoT con Android
 
-Versión 2.1 local. La aplicación funciona sin Internet, sin cuentas externas y sin servicios remotos. Las cuentas y las lecturas se guardan en SQLite en cada teléfono.
+Versión 3.0. El monitoreo, el login y el control funcionan en la red Wi-Fi local, incluso sin Internet: las cuentas y las lecturas se guardan en SQLite en cada teléfono. Cuando hay Internet, el emisor respalda las lecturas en **Firebase** (Authentication + Cloud Firestore), y ambos teléfonos pueden consultarlas.
 
 Sumativa Unidad 2 · TI3042 Aplicaciones Móviles para IoT.
 
@@ -32,6 +32,8 @@ Android Studio puede necesitar Internet para descargar sus herramientas al prepa
 - `Simulator.kt`: ESP32 simulado con la lógica del Arduino, para demostrar sin circuito.
 - `LocalCrypto.kt`: hashes de contraseñas y cifrado autenticado entre teléfonos.
 - `PairingVault.kt`: protección del código de enlace y de la clave del ESP32 con Android Keystore.
+- `CloudSync.kt`: Firebase Authentication y Cloud Firestore.
+- `firebase/firestore.rules`: reglas de seguridad de Firestore.
 - `LocalPeer.kt`: comunicación directa por TCP local, puerto 8765, con mensajes AES-GCM.
 - `firmware/ArduinoUno/ArduinoUno.ino`: programa con espera inicial de 5 segundos y umbrales 500/450.
 - `firmware/ESP32/ESP32.ino`: lecturas firmadas, orden de prueba hacia el Arduino y marcadores para el Wi-Fi y la clave del dispositivo.
@@ -46,8 +48,9 @@ MQ-2 → Arduino Uno ⇄ UART ⇄ ESP32
                          Android receptor
 
 Cada Android: cuentas locales + historial SQLite
+Emisor ──HTTPS/TLS──▶ Firebase (Auth + Firestore) ◀──HTTPS/TLS── Receptor
 ```
 
-Solo se admiten direcciones IPv4 privadas literales para las conexiones salientes. No hay direcciones de servicios externos ni sincronización remota. El permiso Android `INTERNET` permite utilizar sockets de red, también cuando esa red no tiene salida a Internet.
+Las conexiones locales solo admiten direcciones IPv4 privadas literales. La única conexión externa es Firebase, opcional y por HTTPS/TLS. El permiso Android `INTERNET` permite utilizar sockets de red, también cuando esa red no tiene salida a Internet.
 
 Las alertas físicas continúan siendo responsabilidad del Arduino. La app monitorea, permite solicitar o confirmar una revisión desde otro Android y controla el detector con **Probar alarma (3 s)**, que activa el LED rojo y el buzzer. Mantén abiertas las dos aplicaciones durante la demostración.

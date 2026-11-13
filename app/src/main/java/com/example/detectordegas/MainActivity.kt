@@ -183,10 +183,29 @@ private fun Monitor(m: DetectorModel) {
 @Composable
 private fun HistoryScreen(m: DetectorModel) {
     var confirm by remember { mutableStateOf(false) }
-    Text("Últimas 100 lecturas de esta cuenta en este teléfono. Se conservan hasta 500 registros locales.")
-    if (m.isAdmin) TextButton(onClick = { confirm = true }) { Text("Borrar historial local") }
-    if (m.localHistory.isEmpty()) Text("Aún no hay lecturas. Inicia el monitoreo para guardar registros.")
-    m.localHistory.forEach { r ->
+    var fromCloud by rememberSaveable { mutableStateOf(false) }
+    if (!m.demo) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(selected = !fromCloud, onClick = { fromCloud = false }, label = { Text("Este teléfono · SQLite") })
+        FilterChip(selected = fromCloud, onClick = { fromCloud = true; if (m.cloudEmail.isNotEmpty() && m.cloudHistory.isEmpty()) m.refreshCloud() },
+            label = { Text("Nube · Firestore") })
+    }
+    val list = if (fromCloud && !m.demo) m.cloudHistory else m.localHistory
+    if (fromCloud && !m.demo) {
+        when {
+            !m.cloudConfigured -> Text("Firebase no está configurado en esta compilación. Revisa la sección Nube de la guía.")
+            m.cloudEmail.isEmpty() -> Text("El administrador debe iniciar sesión en la nube desde Ajustes.")
+            else -> {
+                Text("Últimas 100 lecturas subidas por el emisor a la cuenta ${m.cloudEmail}.")
+                OutlinedButton(onClick = { m.refreshCloud() }, enabled = !m.busy) { Text("Actualizar desde la nube") }
+            }
+        }
+        if (m.cloudStatus.isNotEmpty()) Text(m.cloudStatus, style = MaterialTheme.typography.bodySmall)
+    } else {
+        Text("Últimas 100 lecturas de esta cuenta en este teléfono. Se conservan hasta 500 registros locales.")
+        if (m.isAdmin) TextButton(onClick = { confirm = true }) { Text("Borrar historial local") }
+    }
+    if (list.isEmpty()) Text("Aún no hay lecturas. Inicia el monitoreo para guardar registros.")
+    list.forEach { r ->
         Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -288,15 +307,50 @@ private fun Settings(m: DetectorModel) {
             label = { Text("Código del emisor") }, modifier = Modifier.fillMaxWidth(), enabled = editable)
         Text("El código autoriza el enlace cifrado. Guárdalo entre tus dos teléfonos. Se conserva protegido en este dispositivo.", style = MaterialTheme.typography.bodySmall)
     }
+    if (!m.demo) CloudSection(m)
     Section("Sesión local") {
         Text(m.user?.let { "${it.username} · ${it.role}" } ?: "Demostración sin iniciar sesión", fontWeight = FontWeight.SemiBold)
         if (!m.demo) Text("La primera cuenta creada en el teléfono es administradora; las siguientes son operadoras.",
             style = MaterialTheme.typography.bodySmall)
-        Text("Las cuentas y el historial están en este teléfono. No se conectan a ningún servicio externo.")
+        Text("Las cuentas locales y el historial SQLite están en este teléfono. La nube (Firebase) es opcional y la conecta el administrador.")
         Text("Mantén abiertas ambas aplicaciones durante la evaluación. La prueba de alarma se envía desde Monitor o con T en el Monitor serie del Arduino.")
         OutlinedButton(onClick = { m.logout() }, enabled = !m.busy, modifier = Modifier.fillMaxWidth()) {
             Text(if (m.demo) "Salir de la demostración" else "Cerrar sesión")
         }
+    }
+}
+
+@Composable
+private fun CloudSection(m: DetectorModel) {
+    var email by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    Section("Nube · Firebase") {
+        when {
+            !m.cloudConfigured -> Text("Firebase no está configurado: falta app/google-services.json. La app funciona solo en local.",
+                style = MaterialTheme.typography.bodySmall)
+            m.cloudEmail.isNotEmpty() -> {
+                Text("Conectado como ${m.cloudEmail}", fontWeight = FontWeight.SemiBold)
+                Text(if (m.publisher) "Este emisor sube cada lectura guardada a Cloud Firestore." else
+                    "Este receptor puede consultar en Historial las lecturas que subió el emisor con la misma cuenta.",
+                    style = MaterialTheme.typography.bodySmall)
+                if (m.isAdmin) OutlinedButton(onClick = { m.cloudSignOut() }, enabled = !m.busy) { Text("Cerrar sesión de la nube") }
+            }
+            !m.isAdmin -> Text("La nube no está conectada. Solo el administrador puede conectarla.")
+            else -> {
+                Text("Usa la misma cuenta en los dos teléfonos para ver el historial del emisor desde cualquier lugar con Internet.",
+                    style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Correo") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.fillMaxWidth(), enabled = !m.busy)
+                OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Contraseña de la nube") },
+                    visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !m.busy)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { m.cloudSignIn(email, password, false); password = "" }, enabled = !m.busy) { Text("Entrar") }
+                    OutlinedButton(onClick = { m.cloudSignIn(email, password, true); password = "" }, enabled = !m.busy) { Text("Crear cuenta") }
+                }
+            }
+        }
+        if (m.cloudStatus.isNotEmpty() && m.cloudConfigured) Text(m.cloudStatus, style = MaterialTheme.typography.bodySmall)
     }
 }
 

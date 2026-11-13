@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// Reglas de seguridad de Cloud Firestore para Detector de Gas.
+// Copiar en Firebase Console → Firestore Database → Reglas → Publicar.
+//
+// - Solo usuarios autenticados (Firebase Authentication con correo y contraseña).
+// - Cada cuenta lee y crea únicamente sus propias lecturas: users/{uid}/readings.
+// - Las lecturas no se pueden modificar ni borrar desde la app (registro de solo anexado).
+// - Se validan los campos, tipos y rangos, igual que en la app y en el ESP32.
+// - Todo lo demás queda denegado.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validReading(d) {
+      return d.keys().hasOnly(['value', 'state', 'connected', 'source', 'time', 'device'])
+        && d.keys().hasAll(['state', 'connected', 'source', 'time', 'device'])
+        && d.state in ['calentando', 'sin_alerta', 'alerta', 'prueba', 'sin_datos']
+        && d.connected is bool
+        && (
+          (d.connected == true && d.value is int && d.value >= 0 && d.value <= 1023 && d.state != 'sin_datos')
+          || (d.connected == false && (!('value' in d) || d.value == null) && d.state == 'sin_datos')
+        )
+        && d.time is int && d.time > 0
+        && d.source is string && d.source.size() <= 40
+        && d.device is string && d.device.size() <= 100;
+    }
+
+    match /users/{uid}/readings/{readingId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validReading(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

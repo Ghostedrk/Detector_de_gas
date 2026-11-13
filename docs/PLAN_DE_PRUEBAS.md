@@ -1,6 +1,6 @@
 # Plan de pruebas y evidencias
 
-Cubre el indicador 2.1.3.11: autenticación, comunicación con dispositivos IoT, manipulación de datos y seguridad. Versión probada: 2.1-local.
+Cubre el indicador 2.1.3.11: autenticación, comunicación con dispositivos IoT, manipulación de datos y seguridad. Versión probada: 3.0.
 
 ## 1. Pruebas automatizadas
 
@@ -15,7 +15,7 @@ gradlew.bat connectedDebugAndroidTest
 
 La segunda orden necesita un emulador o un teléfono conectado.
 
-### Pruebas unitarias (JVM): 22 de 22 aprobadas
+### Pruebas unitarias (JVM): 26 de 26 aprobadas
 
 | # | Área | Qué verifica | Clase | Resultado |
 | --- | --- | --- | --- | --- |
@@ -41,8 +41,12 @@ La segunda orden necesita un emulador o un teléfono conectado.
 | U20 | Seguridad IoT | La clave del ESP32 debe tener 64 caracteres hexadecimales | `EspAuthTest` | Aprobada |
 | U21 | Conexión IoT | HTTP real contra un ESP32 falso en la IP privada del PC: lectura firmada, orden con desafío y rechazo con clave incorrecta | `EspClientTest` | Aprobada |
 | U22 | Control IoT | La orden del receptor se encola una sola vez y ambos teléfonos ven el resultado | `RemoteControlTest` | Aprobada |
+| U23 | Nube | Una lectura se convierte en documento de Firestore y vuelve sin pérdida | `CloudDocumentTest` | Aprobada |
+| U24 | Nube | La ausencia de datos se mantiene como nula | `CloudDocumentTest` | Aprobada |
+| U25 | Nube | Los textos se recortan a los límites de las reglas de seguridad | `CloudDocumentTest` | Aprobada |
+| U26 | Nube | Rechaza documentos con valores fuera de rango, estados desconocidos, tipos incorrectos o campos faltantes | `CloudDocumentTest` | Aprobada |
 
-Ejecución: 10/11/2026 con `gradlew.bat testDebugUnitTest`, BUILD SUCCESSFUL, 0 fallos.
+Ejecución: 12/11/2026 con `gradlew.bat testDebugUnitTest`, BUILD SUCCESSFUL, 0 fallos.
 
 ### Pruebas instrumentadas (SQLite real en Android): 4 de 4 aprobadas
 
@@ -89,8 +93,13 @@ Escribe en **Obtenido** lo que ocurra y guarda una captura en `docs/evidencias/`
 | M14 | Clave del ESP32 incorrecta | Cambiar la clave en la app | "El ESP32 rechazó la firma" | |
 | M15 | Alarma física | Probar alarma con el circuito | LED rojo y buzzer durante 3 s | |
 | M16 | Sin datos del Arduino | Desconectar el cable de GPIO16 | "Arduino sin datos"; nunca "sin alerta" | |
+| M17 | Cuenta en la nube | Ajustes → Nube → Crear cuenta (administrador) | "Conectado como correo" y la cuenta aparece en Firebase Console → Authentication | |
+| M18 | Respaldo en Firestore | Emisor con la nube conectada, monitorear 1 minuto | Documentos nuevos en Firestore → users/{uid}/readings | |
+| M19 | Consulta desde el receptor | Receptor con la misma cuenta → Historial → Nube | Muestra las lecturas del emisor con el origen "Nube · …" | |
+| M20 | Reglas de seguridad | En el simulador de reglas de la consola, leer users/{otro_uid} | Acceso denegado | |
+| M21 | Sin Internet | Cortar Internet y mantener el Wi-Fi local | El monitoreo sigue; las lecturas se suben al volver la conexión | |
 
-M13 a M16 requieren el circuito. M01 a M12 se pueden hacer con dos teléfonos o con dos emuladores.
+M13 a M16 requieren el circuito. M17 a M21 requieren el proyecto de Firebase configurado. M01 a M12 se pueden hacer con dos teléfonos o con dos emuladores.
 
 ## 3. Límites de la validación
 
