@@ -93,9 +93,9 @@ Escribe en **Obtenido** lo que ocurra y guarda una captura en `docs/evidencias/`
 | M14 | Clave del ESP32 incorrecta | Cambiar la clave en la app | "El ESP32 rechazó la firma" | |
 | M15 | Alarma física | Probar alarma con el circuito | LED rojo y buzzer durante 3 s | |
 | M16 | Sin datos del Arduino | Desconectar el cable de GPIO16 | "Arduino sin datos"; nunca "sin alerta" | |
-| M17 | Cuenta en la nube | Ajustes → Nube → Crear cuenta (administrador) | "Conectado como correo" y la cuenta aparece en Firebase Console → Authentication | |
-| M18 | Respaldo en Firestore | Emisor con la nube conectada, monitorear 1 minuto | Documentos nuevos en Firestore → users/{uid}/readings | |
-| M19 | Consulta desde el receptor | Receptor con la misma cuenta → Historial → Nube | Muestra las lecturas del emisor con el origen "Nube · …" | |
+| M17 | Cuenta en la nube | Ajustes → Nube → Crear cuenta (administrador) | "Conectado como correo" y la cuenta aparece en Firebase Console → Authentication | **Correcto** (emulador, 13/11): Firebase se inicializa con `google-services.json`, la cuenta se creó y la app muestra "Conectado como …". [Formulario de la nube](evidencias/M17_nube_configurada.png) |
+| M18 | Respaldo en Firestore | Emisor con la nube conectada, monitorear 1 minuto | Documentos nuevos en Firestore → users/{uid}/readings | **Correcto** (emulador): en unos 30 s se subieron 10 lecturas; las reglas aceptaron las escrituras |
+| M19 | Consulta desde el receptor | Receptor con la misma cuenta → Historial → Nube | Muestra las lecturas del emisor con el origen "Nube · …" | **Parcial**: Historial → Nube descargó y validó las 10 lecturas en el mismo emisor ("Nube · SIMULACIÓN · dispositivo"). Falta hacerlo desde un segundo teléfono. [Historial en la nube](evidencias/M18_M19_historial_nube.png) |
 | M20 | Reglas de seguridad | En el simulador de reglas de la consola, leer users/{otro_uid} | Acceso denegado | |
 | M21 | Sin Internet | Cortar Internet y mantener el Wi-Fi local | El monitoreo sigue; las lecturas se suben al volver la conexión | |
 
