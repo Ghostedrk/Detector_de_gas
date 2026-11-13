@@ -1,0 +1,34 @@
+@startuml secuencia_prueba
+title Secuencia · Probar alarma desde el teléfono receptor
+autonumber
+
+actor "Administrador" as Admin
+participant "App receptor" as Receptor
+participant "App emisor" as Emisor
+participant "ESP32" as ESP
+participant "Arduino Uno" as Arduino
+
+Admin -> Receptor : pulsar "Probar alarma (3 s)"
+Receptor -> Receptor : requireAdmin()
+alt el usuario es operador
+  Receptor --> Admin : "Solo el administrador puede\nenviar órdenes al detector"
+else el usuario es administrador
+  Receptor -> Emisor : TCP cifrado: op = "test"
+  Emisor -> Emisor : encolar prueba (una a la vez)
+  Emisor --> Receptor : "Prueba pedida... esperando al emisor"
+
+  note over Emisor, Arduino : Siguiente ciclo de consulta del emisor (2 s)
+  Emisor -> ESP : GET /desafio
+  ESP --> Emisor : desafío aleatorio (un solo uso, 10 s)
+  Emisor -> ESP : POST /prueba\nX-Nonce = desafío + X-Firma (HMAC)
+  ESP -> ESP : verificar firma y desafío
+  ESP -> Arduino : 'T' por UART
+  Arduino -> Arduino : LED rojo + buzzer 3 s\nestado = "prueba"
+  ESP --> Emisor : {"resultado":"prueba_enviada"} firmado
+  Emisor -> Emisor : guardar resultado del comando
+
+  Receptor -> Emisor : consulta de estado (TCP cifrado)
+  Emisor --> Receptor : "Prueba de alarma enviada · pedida por ..."
+  Receptor --> Admin : mostrar resultado
+end
+@enduml

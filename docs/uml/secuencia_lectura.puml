@@ -1,0 +1,48 @@
+@startuml secuencia_lectura
+title Secuencia · Lectura del sensor hasta los dos teléfonos
+autonumber
+skinparam sequenceMessageAlign center
+
+participant "Sensor\nMQ-2" as Sensor
+participant "Arduino Uno" as Arduino
+participant "ESP32" as ESP
+participant "App emisor\n(DetectorModel)" as Emisor
+database "SQLite\nemisor" as DB1
+participant "Firebase\nFirestore" as Cloud
+participant "App receptor" as Receptor
+actor "Usuario" as Usuario
+
+loop cada 250 ms
+  Arduino -> Sensor : analogRead(A0)
+  Sensor --> Arduino : valor 0-1023
+  Arduino -> Arduino : aplicar umbral 500 / 450\n(LED y buzzer)
+  Arduino -> ESP : "620,alerta" (UART 9600)
+end
+
+loop cada 2 s
+  Emisor -> ESP : GET /estado\nX-Nonce + X-Firma (HMAC)
+  alt firma válida
+    ESP --> Emisor : JSON + X-Firma de la respuesta
+    Emisor -> Emisor : verificar firma y validar JSON
+    Emisor -> DB1 : guardar (cada 5 s o al cambiar de estado)
+    opt cuenta en la nube conectada
+      Emisor -> Cloud : add(users/{uid}/readings) por HTTPS
+    end
+  else firma incorrecta
+    ESP --> Emisor : 401 no autorizado
+    Emisor -> Emisor : "sin datos": no muestra lectura
+  end
+end
+
+loop cada 2 s
+  Receptor -> Emisor : TCP 8765: desafío + solicitud cifrada (AES-GCM)
+  Emisor --> Receptor : lectura + revisiones (cifrado)
+  Receptor -> Receptor : guardar en su SQLite
+  Receptor -> Usuario : mostrar lectura y estado
+end
+
+note over Receptor, Emisor
+  Si el emisor no responde o la lectura tiene
+  más de 10 s, el receptor muestra "Sin conexión".
+end note
+@enduml

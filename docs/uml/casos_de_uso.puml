@@ -1,0 +1,63 @@
+@startuml casos_de_uso
+title Casos de uso · Detector de gas IoT
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Operador" as Operador
+actor "Administrador" as Admin
+Admin -|> Operador
+
+actor "Detector\n(Arduino + ESP32)" as Detector <<dispositivo>>
+actor "Otro teléfono\nAndroid" as Peer <<dispositivo>>
+actor "Firebase" as Firebase <<servicio>>
+
+rectangle "Aplicación Detector de Gas" {
+  usecase "Iniciar sesión local" as UC1
+  usecase "Crear cuenta local" as UC2
+  usecase "Explorar con datos simulados" as UC3
+  usecase "Monitorear lectura\nen tiempo real" as UC4
+  usecase "Recibir aviso de\npérdida de conexión" as UC5
+  usecase "Consultar historial local" as UC6
+  usecase "Consultar historial\nen la nube" as UC7
+  usecase "Solicitar revisión" as UC8
+  usecase "Confirmar revisión" as UC9
+  usecase "Cerrar sesión" as UC10
+
+  usecase "Probar alarma (3 s)" as UC11
+  usecase "Configurar rol, IP\ny fuente del sensor" as UC12
+  usecase "Gestionar clave del ESP32\ny código de enlace" as UC13
+  usecase "Conectar cuenta\nen la nube" as UC14
+  usecase "Borrar historial local" as UC15
+  usecase "Respaldar lecturas\nen Firestore" as UC16
+}
+
+Operador --> UC1
+Operador --> UC2
+Operador --> UC3
+Operador --> UC4
+Operador --> UC6
+Operador --> UC7
+Operador --> UC8
+Operador --> UC9
+Operador --> UC10
+
+Admin --> UC11
+Admin --> UC12
+Admin --> UC13
+Admin --> UC14
+Admin --> UC15
+
+UC4 <.. UC5 : <<extend>>
+UC4 ..> UC16 : <<include>>\n(solo emisor con nube)
+UC1 <.. UC2 : <<extend>>
+
+UC4 --> Detector
+UC11 --> Detector
+UC4 --> Peer
+UC8 --> Peer
+UC9 --> Peer
+UC14 --> Firebase
+UC16 --> Firebase
+UC7 --> Firebase
+@enduml

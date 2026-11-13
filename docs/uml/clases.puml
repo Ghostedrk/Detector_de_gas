@@ -1,0 +1,147 @@
+@startuml clases
+title Diagrama de clases · Aplicación Android
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+package "Interfaz" {
+  class MainActivity {
+    +onCreate()
+  }
+  note right of MainActivity : Pantallas Compose:\nLogin, Monitor, Historial,\nTeléfonos y Ajustes
+}
+
+package "Lógica" {
+  class DetectorModel <<ViewModel>> {
+    +user : LocalUser?
+    +reading : Reading?
+    +publisher : Boolean
+    +simulatedSensor : Boolean
+    +running : Boolean
+    +isAdmin : Boolean
+    +cloudEmail : String
+    +login(password, register)
+    +start()
+    +stop()
+    +poll()
+    +testAlarm()
+    +requestReview()
+    +acknowledge(review)
+    +cloudSignIn(email, password, register)
+    +refreshCloud()
+    +clearHistory()
+    -saveReading(r)
+    -requireAdmin() : Boolean
+  }
+  class SimulatedDetector {
+    +read() : Reading
+    +triggerTest()
+    +reset()
+  }
+}
+
+package "Datos" {
+  class Reading <<data>> {
+    +value : Int?
+    +state : String
+    +connected : Boolean
+    +time : Long
+    +source : String
+    +json() : JSONObject
+    {static} +parse(json, source) : Reading
+  }
+  class LocalUser <<data>> {
+    +uid : String
+    +username : String
+    +role : String
+  }
+  class History <<SQLiteOpenHelper>> {
+    +register(username, password, algorithm) : LocalUser
+    +login(username, password) : LocalUser
+    +add(owner, reading)
+    +list(owner) : List<Reading>
+    +clear(owner)
+  }
+  class CloudSync {
+    +configured : Boolean
+    +email : String?
+    +signIn(email, password, register) : String
+    +signOut()
+    +upload(reading, device)
+    +list(limit) : List<Reading>
+  }
+}
+
+package "Comunicación" {
+  class EspClient <<object>> {
+    +status(ip, key) : JSONObject
+    +test(ip, key) : JSONObject
+  }
+  class EspAuth <<object>> {
+    +request(key, method, path, nonce) : String
+    +response(key, nonce, body) : String
+    +verifyResponse(key, nonce, body, signature) : Boolean
+  }
+  class LocalHub {
+    +update(reading)
+    +handle(request) : JSONObject
+    +takeTests() : List<String>
+    +list() : List<Review>
+  }
+  class LocalPeerServer {
+    +start()
+    +stop()
+  }
+  class LocalPeerClient <<object>> {
+    +exchange(ip, key, request) : JSONObject
+  }
+  class Review <<data>> {
+    +id : String
+    +sender : String
+    +device : String
+    +time : Long
+    +ack : String
+  }
+}
+
+package "Seguridad" {
+  class LocalCrypto <<object>> {
+    +seal(key, plain, direction) : ByteArray
+    +open(key, packet, direction) : ByteArray
+    +hmacHex(key, message) : String
+    +pairingKey(code) : ByteArray
+    +deviceKey(code) : ByteArray
+  }
+  class PasswordHash <<object>> {
+    +derive(password, salt, algorithm) : ByteArray
+  }
+  class PairingVault {
+    +save(owner, code)
+    +load(owner) : String?
+  }
+}
+
+MainActivity --> DetectorModel : observa estado
+DetectorModel *-- History
+DetectorModel *-- CloudSync
+DetectorModel *-- PairingVault
+DetectorModel *-- SimulatedDetector
+DetectorModel *-- LocalHub
+DetectorModel o-- LocalPeerServer
+DetectorModel ..> EspClient : emisor
+DetectorModel ..> LocalPeerClient : receptor
+DetectorModel --> "0..1" LocalUser
+DetectorModel --> "0..1" Reading
+
+LocalPeerServer --> LocalHub
+LocalHub "1" *-- "0..20" Review
+LocalPeerServer ..> LocalCrypto
+LocalPeerClient ..> LocalCrypto
+EspClient ..> EspAuth
+EspAuth ..> LocalCrypto
+History ..> PasswordHash
+PairingVault ..> LocalCrypto
+History ..> Reading
+CloudSync ..> Reading
+SimulatedDetector ..> Reading
+@enduml

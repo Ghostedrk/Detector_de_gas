@@ -1,0 +1,43 @@
+@startuml despliegue
+title Diagrama de despliegue · Detector de gas IoT
+skinparam nodesep 40
+skinparam ranksep 50
+
+node "Circuito del detector" {
+  node "Arduino Uno" as UNO {
+    artifact "ArduinoUno.ino" as FW1
+  }
+  node "ESP32 DevKit V1" as ESP {
+    artifact "ESP32.ino" as FW2
+  }
+  component "Sensor MQ-2" as MQ2
+  component "LED verde / LED rojo\nBuzzer" as OUT
+}
+
+cloud "Red Wi-Fi local (WPA2)" as LAN {
+  node "Teléfono Android emisor" as PH1 {
+    artifact "app-debug.apk\n(DetectorModel)" as APP1
+    database "SQLite" as DB1
+  }
+  node "Teléfono Android receptor" as PH2 {
+    artifact "app-debug.apk" as APP2
+    database "SQLite" as DB2
+  }
+}
+
+cloud "Google Firebase" as FB {
+  component "Authentication" as AUTH
+  database "Cloud Firestore\nusers/{uid}/readings" as FS
+}
+
+MQ2 --> UNO : A0 (analógico)
+UNO --> OUT : D4, D5, D8
+UNO --> ESP : UART TX → RX2 (lecturas)
+ESP --> UNO : UART TX2 → RX ("T")
+ESP <--> PH1 : HTTP firmado HMAC-SHA256\n/estado, /desafio, /prueba
+PH1 <--> PH2 : TCP 8765\nAES-256-GCM
+PH1 --> FS : HTTPS/TLS\n(sube lecturas)
+PH2 --> FS : HTTPS/TLS\n(consulta)
+PH1 --> AUTH : HTTPS/TLS
+PH2 --> AUTH : HTTPS/TLS
+@enduml
