@@ -82,12 +82,12 @@ Escribe en **Obtenido** lo que ocurra y guarda una captura en `docs/evidencias/`
 | M03 | Contraseña incorrecta | Cinco intentos con una contraseña errónea | Rechazo genérico; bloqueo de 30 s | |
 | M04 | Login sin Internet | Modo avión con Wi-Fi local activo | El login y el historial funcionan | |
 | M05 | Emisor con ESP32 simulado | Ajustes → Emisor → ESP32 simulado → Iniciar monitoreo | Lecturas cada 2 s; alerta al pasar de 500 | **Correcto** (emulador): espera inicial → 610 en alerta; Probar alarma pasa a estado de prueba. [Alerta](evidencias/M05_alerta_simulada.png), [prueba](evidencias/M05_prueba_alarma.png) |
-| M06 | Enlace entre dos Android | Receptor con la IP del emisor y su código | El receptor muestra la lectura "Emisor · SIMULACIÓN" | |
+| M06 | Enlace entre dos Android | Receptor con la IP del emisor y su código | El receptor muestra la lectura "Emisor · SIMULACIÓN" | **Correcto** (13/11, Samsung A30 Android 11 como emisor y emulador Android 17 como receptor, Wi-Fi 192.168.1.x): las lecturas coinciden en ambos (470/470, 140/140) y el receptor indica "Conectado al emisor por Wi-Fi local". [Emisor](evidencias/DOS_m06_a30.png), [receptor](evidencias/DOS_m06_emu.png) |
 | M07 | Código de enlace incorrecto | Cambiar un carácter del código en el receptor | "El código de enlace no coincide"; sin lecturas | |
-| M08 | Revisión en ambos sentidos | Solicitar en uno y confirmar en el otro | Ambos muestran "Confirmada por …" | |
-| M09 | Control desde el receptor | Probar alarma (3 s) en el receptor (administrador) | Estado "Prueba manual" en ambos; mensaje del resultado | |
+| M08 | Revisión en ambos sentidos | Solicitar en uno y confirmar en el otro | Ambos muestran "Confirmada por …" | **Correcto**: la solicitud del emulador apareció en el A30 como "Solicitud recibida"; al confirmar, el emulador mostró "Revisión confirmada por SM-A305G". [Recibida](evidencias/DOS_m08_a30_recibida.png), [confirmada](evidencias/DOS_m08_emu_confirmada.png) |
+| M09 | Control desde el receptor | Probar alarma (3 s) en el receptor (administrador) | Estado "Prueba manual" en ambos; mensaje del resultado | **Correcto**: tras pulsar Probar alarma en el emulador, ambos pasaron a "Prueba de alarma" (ámbar) con el mensaje "Prueba de alarma enviada · pedida por sdk_gphone64…". [Emisor](evidencias/DOS_m09_a30.png), [receptor](evidencias/DOS_m09_emu2.png) |
 | M10 | Historial | Abrir Historial tras 1 minuto de monitoreo | Registros con fecha, estado, origen y valor | **Correcto** (emulador): incluye "Prueba manual" y la histéresis (470 sigue en alerta); cada cuenta ve solo sus registros. [Historial](evidencias/M10_historial.png) |
-| M11 | Pérdida del emisor | Detener el monitoreo del emisor | El receptor muestra "Sin conexión" y retira la lectura | |
+| M11 | Pérdida del emisor | Detener el monitoreo del emisor | El receptor muestra "Sin conexión" y retira la lectura | **Correcto**: al detener el A30, el receptor pasó a gris "Sin datos del sensor / Sin datos del emisor" y retiró la lectura. [Receptor](evidencias/DOS_m11_emu.png) |
 | M12 | App en segundo plano | Salir al inicio y volver | Se pausa y se reanuda sola | |
 | M13 | ESP32 real autenticado | Clave igual en la app y en el firmware | "ESP32 conectado y autenticado" | |
 | M14 | Clave del ESP32 incorrecta | Cambiar la clave en la app | "El ESP32 rechazó la firma" | |
@@ -103,7 +103,8 @@ M13 a M16 requieren el circuito. M17 a M21 requieren el proyecto de Firebase con
 
 ## 3. Límites de la validación
 
-- La interfaz se probó en un solo emulador (Android 17). El enlace entre dos Android (M06–M09, M11) necesita un segundo dispositivo; la lógica TCP está cubierta por U12–U14 y U22. [Pantalla Teléfonos del emisor](evidencias/M06_telefonos_emisor.png).
+- El enlace entre dos Android (M06, M08, M09, M11) se probó con un teléfono físico (Samsung A30, Android 11) como emisor y el emulador como receptor. M07 (código incorrecto) y M12 (segundo plano) no se probaron con los dos dispositivos; la lógica de M07 está cubierta por U13.
+- El control de acceso también se verificó en el teléfono físico: una cuenta operadora ve "Probar alarma" desactivado ("Solo el administrador"). [Operador en el A30](evidencias/A30_operador_monitor.png)
 - El firmware no se compiló aquí (no hay arduino-cli instalado). Debe compilarse en el IDE de Arduino con el paquete ESP32.
 - El enlace con el ESP32 está autenticado, pero no cifrado. No se acredita cumplimiento completo de ISO 27400.
 - La app no da alertas en segundo plano: debe estar abierta durante la demostración.
